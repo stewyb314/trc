@@ -1,1 +1,2 @@
 # trc
+teleport remote command
