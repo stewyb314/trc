@@ -12,6 +12,9 @@ customer issues.
 trc is split into two executables: `trc-server` and `trc-client`.  `trc-client` runs in the Teleport environment and 
 sends arbitrary shell commands to `trc-server`, which is installed on the customers' Linux box. `trc-server` is responsible for executing
 the receivesd commands and stores the results.
+
+The client and server communicate over gRPC.
+
 ### trc-client usage
 **Design Consideration:** When possible I like outputting commands in JSON. For small blocks of data it is a good compromise between being
 human-readable and machine parseable.
@@ -89,6 +92,23 @@ Output:
   "status": "<exit status of command>"
 }
 ```
+
+### output subcommand
+The `output` subcommand streams results from a command.  If the command is still running on the remote machine, the output will be live streamed until
+ the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been dispalyed
+ 
+ ```
+ Usage: trc-client [options] status <command id>
+ Stream the output of a command
+```
+
+Output:
+```
+command output line1
+command output line2
+command output line3
+```
+
 
 ### stop subcommand
 
