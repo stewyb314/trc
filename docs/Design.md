@@ -181,6 +181,35 @@ More details in [Authentication Service](#Authentication Service)
                         +------------------------------------------------------------------+
 ```
 
+**Terminology** A `job` in this context consists of a single command and associated metadata.  
+
+**Design Considerations** For the sake of simplicity, data is NOT persisted between server restarts.  Job Repository interface  will provide 
+CRUD operations so changing the implementation be backed by a database won't require changes to the interface.
+
+## API
+The API receives the incoming request from a client.  It authenticates the request and calls the appropriate method in the Job Manager.
+
+## Auth Service
+The Auth Service is responsible for verifying the connected client has permissions to run commands on the server.  On startup, the auth service reads in 
+a list of authorized client certificates.  When a request comes in, the public key is obtained from the request and passed to Auth Service.  If the key
+matches one of the known certificates, a unique user ID is returned.  The ID is then attached to each job as they are started.  The user ID then used to
+prevent a user from getting a different user's command info.
+
+Because data is not presisted across server restarts, user IDs aren't guaranteed to be consistent across restarts.  They will, however, be consistent on 
+individual runs of the server.  In a production system, the Auth Service would be backed by a database and consistency maintained.
+
+## Job Repository
+The Job Repository preserves the state of each job.  For this implementation it is not backed by a database, but the schema is:
+
+```
+     command_id.       |     user_id        |    state     |   command     |    args       |    output_file
+   --------------------+--------------------+--------------+---------------+---------------+-------------------------
+   UUID of the command | ID of user who     | state of the | command which | list of args  | file with command output
+   which was run.      | started command.   | command.     | was run.      | to the command|
+```
+## Job Manager
+The Job Manager is responsible for
+
 
 
 
