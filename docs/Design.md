@@ -15,7 +15,7 @@ the receivesd commands and stores the results.
 
 The client and server communicate over gRPC.
 
-### trc-client usage
+## trc-client usage
 **Design Consideration:** When possible I like outputting commands in JSON. For small blocks of data it is a good compromise between being
 human-readable and machine parseable.
 
@@ -124,5 +124,68 @@ Output:
   "success": "true|false"
 }
 ```
+
+## trc-server usage
+The server only takes a single option:
+```
+Options:
+    - auth-config
+        configuration file of allowed host certificates
+
+File format:
+
+{
+     "ca-cert": "<path to CA cert>",
+     "server-key": "<path to server public key>",
+     "server-cert": "<path to server's cert signed by CA cert>",
+     "client-certs": [
+     	"path-to-cert1",
+	"path-to-cert2",
+	...
+     ]
+}
+```
+Where client-certs is a list of client certificates allowed to connect to the server. 
+
+## Authentication and Authorization
+
+Authentication and Authorization takes place in three steps:
+
+1. Verify the client certificate is signed by the trusted CA.  This step is handled by gRPC library
+2. Verify the client certificate is known to the server.  This is determined by checking the "client-certs" entry in the auth-config file passed into the server at startup.  Each cert is loaded into memory and the public key from the request is comapred to the public key of the certificates.  If a match is found, this step passes.
+3. For `status`, `stop` and `output` sub-commands, verify the client which started the command is same client attempting to access the command (ie user 1 starts the command, user 2 doesn't have permissions to status the command)
+
+More details in [Authentication Service](#Authentication Service)
+
+## Server Design
+```
+                        +-----------------------------------------------------------------+
+                        |           ┌────────┐            ┌────────────┐                  |
+                        |           │Auth.   |            |   Job      |                  |
+                        |           │Service |            |  Repository|                  |
+                        |           └──-─┬───┘            └────────────┘                  |
+                        |                |                       |                        |
+                        |                |                       |              ┌───────┐ |
+                        |                |                       |        +-----| Job 1 | |
+                        |                |                       |        |     └───────┘ |
+     ┌──────┐           |            ┌───┴──┐            ┌───────┴───┐    |               |
+     │Client│-----------+------------│ API  │------------│Job Manager│----+----┌───────┐  |
+     └──-───┘           |            └──────┘            └───────────┘    |    | Job 2 |  |
+                        |                                                 |    └───────┘  |
+                        |                                                 |               |
+                        |                                                 |               |
+                        |                                                 |    ┌────────┐ |
+                        |                                                 +----| Job N  | |
+                        |                                                      └────────┘ |
+                        |                                                                 |
+                        +------------------------------------------------------------------+
+```
+
+
+
+
+
+
+
 
 
