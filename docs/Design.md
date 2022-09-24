@@ -190,7 +190,7 @@ CRUD operations so changing the implementation be backed by a database won't req
 The API receives the incoming request from a client.  It authenticates the request and calls the appropriate method in the Job Manager.
 
 ## Auth Service
-The Auth Service is responsible for verifying the connected client has permissions to run commands on the server.  On startup, the auth service reads in 
+The auth service is responsible for verifying the connected client has permissions to run commands on the server.  On startup, the auth service reads in 
 a list of authorized client certificates.  When a request comes in, the public key is obtained from the request and passed to Auth Service.  If the key
 matches one of the known certificates, a unique user ID is returned.  The ID is then attached to each job as they are started.  The user ID then used to
 prevent a user from getting a different user's command info.
@@ -199,16 +199,46 @@ Because data is not presisted across server restarts, user IDs aren't guaranteed
 individual runs of the server.  In a production system, the Auth Service would be backed by a database and consistency maintained.
 
 ## Job Repository
-The Job Repository preserves the state of each job.  For this implementation it is not backed by a database, but the schema is:
+The job repository preserves the state of each job.  For this implementation it is not backed by a database, but the schema is:
 
 ```
-     command_id.       |     user_id        |    state     |   command     |    args       |    output_file
+     command_id        |     user_id        |    state     |   command     |    args       |    output_file
    --------------------+--------------------+--------------+---------------+---------------+-------------------------
    UUID of the command | ID of user who     | state of the | command which | list of args  | file with command output
    which was run.      | started command.   | command.     | was run.      | to the command|
 ```
 ## Job Manager
-The Job Manager is responsible for
+The job manager is responsible for managing jobs.  The job manager provdes the interface to start, stop, status and get output of jobs.  
+As each job is started, it sets up the cgroup by creating the directoy and setting up the appropriate files.  It then manages the lifecycle of the job,
+both notifying the job if the client stops the job and receiving notification as jobs complete.  As the job changes state, the job manager updates the job
+repository.
+
+As jobs complete, they are removed from the job manager, with the results stored in the job repository.
+
+## Jobs
+Jobs represent a single command launched by the client.  Besides monitoring the job for completion, the job is also responsible for providing a streaming
+service to clients.   The job accomplishes this by writing the output of each command to a file.  As clients execute the `output` subcommand, a watcher is
+created.  Each watcher essentially tails the output file and writes the result to a channel.  When the command completes (either by finishing execution or
+by client stopping command) the watcher is notified via a channel.
+
+In psudo code the watcher tailing an output file:
+```
+    while true {
+    	line = readLineFromOutputFile()
+	if nothing to read {
+	    done = readFromDoneChannel()
+	    if done {
+	        return
+	    }
+	    sleep(1)
+	}
+	writeOutputChannel(line)
+    }
+```
+
+By implementing the streaming using files, the file offsets are managed by the OS, rather than the job.  This significantly simplifies the design.
+
+
 
 
 
