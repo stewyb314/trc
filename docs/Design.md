@@ -43,7 +43,8 @@ Where -ident is the path to a JSON file with information about SSL certs and key
 
 ```
 
-More on the identy file in [Authentication](#authentication).
+Each user has a unique identity config file.  Besides authentication, the server uses this information to distinguish between users.
+More on the identy file in [Authentication](#Authentication-and-Authorization).
 
 ### subcommand error output
 On error, all sub commands output:
@@ -73,7 +74,7 @@ Output:
 ### status subcommand
 The `status` command retrieves information about a previously started command:
 
-```shell
+```
 Usage: trc-client [options] status <command id>
 
 Get status of a previously started command.
@@ -232,11 +233,18 @@ In psudo code the watcher tailing an output file:
 	    }
 	    sleep(1)
 	}
-	writeOutputChannel(line)
+	else {
+	    writeOutputChannel(line)
+	}
     }
 ```
 
 By implementing the streaming using files, the file offsets are managed by the OS, rather than the job.  This significantly simplifies the design.
+
+## cgroups
+
+All jobs will run in a unique cgroup.  This will be setup by the job manager when the job is started.  When the job exists, the job manager will clean up 
+up the cgroup directories.
 
 
 
