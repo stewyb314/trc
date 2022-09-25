@@ -208,7 +208,7 @@ The job repository preserves the state of each job.  For this implementation it 
    which was run.      | started command.   | command.     | was run.      | to the command|
 ```
 
-The job repository provides CRUD access to the data.
+The job repository provides CRUD access to the data (technially CRU operations, as delete is not a requirement of this project).
 
 
 ## Job Manager
