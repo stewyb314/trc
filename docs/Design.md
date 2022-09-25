@@ -13,6 +13,9 @@ trc is split into two executables: `trc-server` and `trc-client`.  `trc-client` 
 sends arbitrary shell commands to `trc-server`, which is installed on the customers' Linux box. `trc-server` is responsible for executing
 the receivesd commands and stores the results.
 
+**Design Consideration** All commands are run as root and there are zero guard rails. If a user decides to get cute and run `rm -rf /`, then RIP their
+machine. A production version of this would add protections like run as non-root or chroot'd to a specific directory.
+
 The client and server communicate over gRPC.
 
 ## trc-client usage
