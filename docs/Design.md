@@ -171,7 +171,7 @@ More details in [Authentication Service](#Authentication Service)
                         |                |                       |        +-----| Job 1 | |
                         |                |                       |        |     └───────┘ |
      ┌──────┐           |            ┌───┴──┐            ┌───────┴───┐    |               |
-     │Client│-----------+------------│ API  │------------│Job Manager│----+----┌───────┐  |
+     │Client│-----------+------------│ API  │------------│Job Service│----+----┌───────┐  |
      └──-───┘           |            └──────┘            └───────────┘    |    | Job 2 |  |
                         |                                                 |    └───────┘  |
                         |                                                 |               |
@@ -189,7 +189,7 @@ More details in [Authentication Service](#Authentication Service)
 CRUD operations so changing the implementation to be backed by a database won't require changes to the interface.
 
 ## API
-The API receives the incoming request from a client.  It authenticates the request and calls the appropriate method in the Job Manager.
+The API receives the incoming request from a client.  It authenticates the request and calls the appropriate method in the Job Service.
 
 ## Auth Service
 The auth service is responsible for verifying the connected client has permissions to run commands on the server.  On startup, the auth service reads in 
@@ -211,13 +211,13 @@ The job repository preserves the state of each job.  For this implementation it 
 The job repository provides CRUD access to the data (technially CRU operations, as delete is not a requirement of this project).
 
 
-## Job Manager
-The job manager is responsible for managing jobs.  The job manager provides the interface to start, stop, status and get output of jobs.  
+## Job Service
+The job service is responsible for managing jobs.  The job service provides the interface to start, stop, status and get output of jobs.  
 As each job is started, it sets up the cgroup by creating the directory and setting up the appropriate files.  It then manages the lifecycle of the job,
-both notifying the job if the client stops the job and receiving notification as jobs complete.  As the job changes state, the job manager updates the job
+both notifying the job if the client stops the job and receiving notification as jobs complete.  As the job changes state, the job service updates the job
 repository.
 
-As jobs complete, they are removed from the job manager, with the results stored in the job repository.
+As jobs complete, they are removed from the job service, with the results stored in the job repository.
 
 ## Jobs
 Jobs represent a single command launched by the client.  Besides monitoring the job for completion, the job is also responsible for providing a streaming
@@ -247,7 +247,7 @@ By implementing the streaming using files, the file offsets are managed by the O
 
 ## cgroups
 
-All jobs will run in a unique cgroup.  This will be setup by the job manager when the job is started.  When the job exists, the job manager will clean up 
+All jobs will run in a unique cgroup.  This will be setup by the job service when the job is started.  When the job exists, the job service will clean up 
 up the cgroup directories.
 
 
@@ -258,7 +258,7 @@ All of the sub commands follow similar workflows, so as an example, this is the 
 ```
     ┌─────┐                 ┌─────┐                   ┌─────────┐                 ┌───────────┐
     | API |                 | Auth|                   | Job.    |                 |   Job     |
-    └──┬──┘                 └──┬──┘                   | Manager |                 | Repository|
+    └──┬──┘                 └──┬──┘                   | Service |                 | Repository|
        |                       |                      └────┬────┘                 └────┬──────┘
        |   Authenticate User   |                           |                           |
        +---------------------> |                           |                           |
