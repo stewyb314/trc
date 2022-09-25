@@ -20,7 +20,7 @@ The client and server communicate over gRPC.
 human-readable and machine parseable.
 
 `trc-client` consists of the sub commands `start`, `stop` `status` and `output`. All the commands except `output` return
-JSON. `output` streams the output of a command (see [output](#output) section below)The following options are common to
+JSON. `output` streams the output of a command (see [output](#output-subcommand) section below)The following options are common to
 all subcommands:
 ```shell
   Options:
@@ -63,13 +63,12 @@ Usage:
 Output:
 ```json
 {
-  "id": "<unique UUID>",
-  "error": "<null|error string>"
+  "id": "<unique UUID>"
 }
 ```
 
 `id`: a unique identifier that can be used to stop or status commands
-`error`: if non-null, the command could not be executed
+
 
 ### status subcommand
 The `status` command retrieves information about a previously started command:
@@ -90,13 +89,12 @@ Output:
             "command arg2"
   ],
   "state": "[running,completed,canceled]",
-  "status": "<exit status of command>"
 }
 ```
 
 ### output subcommand
-The `output` subcommand streams results from a command.  If the command is still running on the remote machine, the output will be live streamed until
- the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been dispalyed
+The `output` subcommand returns output of a command.  If the command is still running on the remote machine, the output will be live streamed until
+ the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been dispalyed.
  
  ```
  Usage: trc-client [options] status <command id>
@@ -185,7 +183,7 @@ More details in [Authentication Service](#Authentication Service)
 **Terminology** A `job` in this context consists of a single command and associated metadata.  
 
 **Design Considerations** For the sake of simplicity, data is NOT persisted between server restarts.  Job Repository interface  will provide 
-CRUD operations so changing the implementation be backed by a database won't require changes to the interface.
+CRUD operations so changing the implementation to be backed by a database won't require changes to the interface.
 
 ## API
 The API receives the incoming request from a client.  It authenticates the request and calls the appropriate method in the Job Manager.
@@ -193,11 +191,9 @@ The API receives the incoming request from a client.  It authenticates the reque
 ## Auth Service
 The auth service is responsible for verifying the connected client has permissions to run commands on the server.  On startup, the auth service reads in 
 a list of authorized client certificates.  When a request comes in, the public key is obtained from the request and passed to Auth Service.  If the key
-matches one of the known certificates, a unique user ID is returned.  The ID is then attached to each job as they are started.  The user ID then used to
-prevent a user from getting a different user's command info.
+matches one of the known certificates, a unique user ID is returned.  The ID is then attached to each job as they are started and used to authorize access
+to a job (ie: if user 1 starts a job, only user 1 should have permission to status or stop the job).
 
-Because data is not presisted across server restarts, user IDs aren't guaranteed to be consistent across restarts.  They will, however, be consistent on 
-individual runs of the server.  In a production system, the Auth Service would be backed by a database and consistency maintained.
 
 ## Job Repository
 The job repository preserves the state of each job.  For this implementation it is not backed by a database, but the schema is:
@@ -208,6 +204,10 @@ The job repository preserves the state of each job.  For this implementation it 
    UUID of the command | ID of user who     | state of the | command which | list of args  | file with command output
    which was run.      | started command.   | command.     | was run.      | to the command|
 ```
+
+The job repository provides CRUD access to the data.
+
+
 ## Job Manager
 The job manager is responsible for managing jobs.  The job manager provdes the interface to start, stop, status and get output of jobs.  
 As each job is started, it sets up the cgroup by creating the directoy and setting up the appropriate files.  It then manages the lifecycle of the job,
@@ -218,7 +218,8 @@ As jobs complete, they are removed from the job manager, with the results stored
 
 ## Jobs
 Jobs represent a single command launched by the client.  Besides monitoring the job for completion, the job is also responsible for providing a streaming
-service to clients.   The job accomplishes this by writing the output of each command to a file.  As clients execute the `output` subcommand, a watcher is
+service to clients when displaying output of a running process.   The job accomplishes this by writing the output of each command to a file.  
+As clients execute the `output` subcommand, a watcher is
 created.  Each watcher essentially tails the output file and writes the result to a channel.  When the command completes (either by finishing execution or
 by client stopping command) the watcher is notified via a channel.
 
@@ -247,7 +248,37 @@ All jobs will run in a unique cgroup.  This will be setup by the job manager whe
 up the cgroup directories.
 
 
+## Workflow
 
+All of the sub commands follow similar workflows, so as an example, this is the workflow for for `start`:
+
+```
+    ┌─────┐                 ┌─────┐                   ┌─────────┐                 ┌───────────┐
+    | API |                 | Auth|                   | Job.    |                 |   Job     |
+    └──┬──┘                 └──┬──┘                   | Manager |                 | Repository|
+       |                       |                      └────┬────┘                 └────┬──────┘
+       |   Authenticate User   |                           |                           |
+       +---------------------> |                           |                           |
+       |                       |                           |                           |
+       |                       |                           |                           |
+       |   User Authenticated  |                           |                           |
+       | <---------------------+                           |                           |
+       |                       |                           |                           |
+       |                       |                           |                           |
+       +----------------Start New Job Request------------->|                           |
+       |                       |                           |                           |
+       |                       |                           |                           |
+       |                       |                           |   Start Job, add to repo  |
+       |                       |                           +-------------------------->|
+       |                       |                           |                           |
+       |                       |                           |                           |
+       |<-------------- Return Command ID -----------------|                           |
+       |                       |                           |                           |
+       |                       |                           |                           |
+
+
+
+```
 
 
 
