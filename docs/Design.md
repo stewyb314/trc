@@ -11,7 +11,7 @@ customer issues.
 ## Details
 trc is split into two executables: `trc-server` and `trc-client`.  `trc-client` runs in the Teleport environment and 
 sends arbitrary shell commands to `trc-server`, which is installed on the customers' Linux box. `trc-server` is responsible for executing
-the receivesd commands and stores the results.
+the received commands and stores the results.
 
 **Design Consideration** All commands are run as root and there are zero guard rails. If a user decides to get cute and run `rm -rf /`, then RIP their
 machine. A production version of this would add protections like run as non-root or chroot'd to a specific directory.
@@ -25,7 +25,7 @@ human-readable and machine parseable.
 `trc-client` consists of the sub commands `start`, `stop` `status` and `output`. All the commands except `output` return
 JSON. `output` streams the output of a command (see [output](#output-subcommand) section below)The following options are common to
 all subcommands:
-```shell
+```
   Options:
 
   -help
@@ -47,7 +47,7 @@ Where -ident is the path to a JSON file with information about SSL certs and key
 ```
 
 Each user has a unique identity config file.  Besides authentication, the server uses this information to distinguish between users.
-More on the identy file in [Authentication](#Authentication-and-Authorization).
+More on the identity file in [Authentication](#Authentication-and-Authorization).
 
 ### subcommand error output
 On error, all sub commands output:
@@ -97,7 +97,7 @@ Output:
 
 ### output subcommand
 The `output` subcommand returns output of a command.  If the command is still running on the remote machine, the output will be live streamed until
- the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been dispalyed.
+ the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been displayed.
  
  ```
  Usage: trc-client [options] status <command id>
@@ -114,7 +114,7 @@ command output line3
 
 ### stop subcommand
 
-The `stop` commmand stops a running command.  If the command is not running, an error is returned.
+The `stop` command stops a running command.  If the command is not running, an error is returned.
 
 ```shell
 Usage: trc-client [options] stop <command id>
@@ -154,7 +154,7 @@ Where client-certs is a list of client certificates allowed to connect to the se
 Authentication and Authorization takes place in three steps:
 
 1. Verify the client certificate is signed by the trusted CA.  This step is handled by gRPC library
-2. Verify the client certificate is known to the server.  This is determined by checking the "client-certs" entry in the auth-config file passed into the server at startup.  Each cert is loaded into memory and the public key from the request is comapred to the public key of the certificates.  If a match is found, this step passes.
+2. Verify the client certificate is known to the server.  This is determined by checking the "client-certs" entry in the auth-config file passed into the server at startup.  Each cert is loaded into memory and the public key from the request is compared to the public key of the certificates.  If a match is found, this step passes.
 3. For `status`, `stop` and `output` sub-commands, verify the client which started the command is same client attempting to access the command (ie user 1 starts the command, user 2 doesn't have permissions to status the command)
 
 More details in [Authentication Service](#Authentication Service)
@@ -212,8 +212,8 @@ The job repository provides CRUD access to the data.
 
 
 ## Job Manager
-The job manager is responsible for managing jobs.  The job manager provdes the interface to start, stop, status and get output of jobs.  
-As each job is started, it sets up the cgroup by creating the directoy and setting up the appropriate files.  It then manages the lifecycle of the job,
+The job manager is responsible for managing jobs.  The job manager provides the interface to start, stop, status and get output of jobs.  
+As each job is started, it sets up the cgroup by creating the directory and setting up the appropriate files.  It then manages the lifecycle of the job,
 both notifying the job if the client stops the job and receiving notification as jobs complete.  As the job changes state, the job manager updates the job
 repository.
 
@@ -226,7 +226,7 @@ As clients execute the `output` subcommand, a watcher is
 created.  Each watcher essentially tails the output file and writes the result to a channel.  When the command completes (either by finishing execution or
 by client stopping command) the watcher is notified via a channel.
 
-In psudo code the watcher tailing an output file:
+In pseudo code the watcher tailing an output file:
 ```
     while true {
     	line = readLineFromOutputFile()
