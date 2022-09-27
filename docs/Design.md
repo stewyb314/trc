@@ -61,7 +61,7 @@ On error, all sub commands output:
 `start` starts a new shell command on the remote server.  
 
 Usage: 
-`trc-client start [-host|-port|-cert ] <command> [command arguments]`.
+`trc-client start [-host|-port|-ident] <command> [command arguments]`.
 
 Output:
 ```json
