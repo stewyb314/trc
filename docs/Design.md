@@ -283,6 +283,83 @@ All of the sub commands follow similar workflows, so as an example, this is the 
 
 ```
 
+# The Server Library
+
+The Job Service is intended by be used as the entry point of a standalone Go libraray. The `jobService` struct provides the functions: `Start()`, `Stop()`, `Status()` and `Output()` to manipulate jobs.  
+
+
+Job Service definitaion
+
+
+```
+type JobService
+```
+```    
+	func (*JobService) Start(userId int, cmd string, args []string, cgroup Cgroup) (UUID, error)
+```
+
+Start a new job.  Where userId identifies the user starting the job, cmd is the path to the command to run, args is the list of arguments to pass to the command and cgroup provides setup/teardown of the cgroup the command will run in.
+
+Return the UUID of the created command and error if the command could not be started.
+```
+    func (*JobService) Status(userId int, cmdId UUID) (Job, error)
+```
+Status a previously started job.  userId is the ID of the user making the request and cmdId is the UUID of the command to status.
+
+On success a Job struct is returned.  The request will error if the userId in the request does not match the userId of the user who initially ran the `Start()` function. 
+
+```
+    func (*JobService) Stop(userId int, cmdId UUID) (Job, error)
+```
+Stop a previously started job.  userId is the ID of the user making the request and cmdId is the UUID of the command to stop.
+
+On success a Job struct is returned.  The request will error if the userId in the request does not match the userId of the user who initially ran the `Start()` function, or if the command is not currently running.
+
+```
+    func (*JobService) Output(userId int, cmdId UUID, output <-chan string) error
+```
+Retrieve the output of a previously started command.  userId is the ID of the user making the request, cmdID is the UUID of the command to retrieve the output on and output is the channel which will stream the output one line at a time.  The channel will close when all data is read or if the command is stopped prematurely.
+
+```
+type Cgroup
+```
+```
+    func (*Cgroup) Setup(mountPoint string,  subDir string) error
+```
+This function creates a new mountpoint for the `/sys/fs/cgroup` directory and creates a unique sub directory for the job to run in.  
+
+The various values for CPU, memory and I/O will be hard coded.  This is done as a siplification for this project.  A production version would be configurable.
+
+```
+	func (*Cgroup) Start(pid int) error
+```
+Insert the pid of the running command into the pid file to put the process in the cgroup.
+
+``` 
+func(*Cgroup) Teardown() error
+```
+
+Teardown changes made by the Setup() function: remove the sub directory and unmount `/sys/fs/cgroup`.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
