@@ -127,6 +127,68 @@ Output:
 }
 ```
 
+
+## gRPC protocol
+
+The protobuf message definitions for sending and receiving commands between the client and server:
+```
+service TrcServer{
+    rpc Start(StartRequest) returns (StartResponse);
+    rpc Output(IdRequest) returns (stream OutputResponse);
+    rpc Status(IdRequest) returns (StatusResponse);
+    rpc Stop(IdRequest) returns (StopResponse);
+}
+
+message StartRequest {
+    string command = 1;
+}
+
+message StartResponse {
+    UUID id = 1;
+    Error error = 2;
+}
+
+message IdRequest {
+    UUID id = 1;
+}
+
+message OutputResponse {
+    string output = 1;
+    Error error = 2;
+}
+
+
+message StatusResponse {
+    UUID id = 1;
+    string cmd = 2;
+    repeated string args = 3;
+    string state = 4;
+    Error error = 5;
+}
+
+message StopResponse {
+    UUID id = 1;
+    Error error = 2;
+}
+
+enum State {
+    RUNNING = 0;
+    COMPLETE = 1;
+    STOPPED = 2;
+    ERROR = 3;
+}
+
+message UUID {
+    string value = 1;
+}
+
+message Error {
+    int32 code = 1;
+    string message = 2;
+}
+
+```
+
 ## trc-server usage
 The server only takes a single option:
 ```
@@ -249,6 +311,10 @@ By implementing the streaming using files, the file offsets are managed by the O
 
 All jobs will run in a unique cgroup.  This will be setup by the job service when the job is started.  When the job exists, the job service will clean up 
 up the cgroup directories.
+
+For this project, the cgroup values will be hard coded.  
+
+**Design Consideration** There are two ways to add a process to a cgroup: either by starting the process using the `cexec` command or by placing the running processes' PID in the cgroup.procs file.  Using cexec command has the advatage of starting the process in the cgroup, however the command is not installed on some Linux distros by default.  Adding the pid has the advatange of not adding additional dependencies, but the disadvatage of starting outside of the cgroup constratings, albeit only briefly.  For this project, I opted to put the PID in the cgroup file.
 
 
 ## Workflow
