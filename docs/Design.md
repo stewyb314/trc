@@ -46,8 +46,7 @@ Where -ident is the path to a JSON file with information about SSL certs and key
 
 ```
 
-Each user has a unique identity config file.  Besides authentication, the server uses this information to distinguish between users.
-More on the identity file in [Authentication](#Authentication-and-Authorization).
+Each user has a unique identity config file.  More on the identity file in [Authentication](#Authentication-and-Authorization).
 
 ### subcommand error output
 On error, all sub commands output:
@@ -91,16 +90,18 @@ Output:
             "command arg1",
             "command arg2"
   ],
-  "state": "[running,completed,canceled]",
+  "state": "[running,completed,canceled,error]",
+  "error": "null|error message"
+  "exit_status: "command exit status"
 }
 ```
 
 ### output subcommand
 The `output` subcommand returns output of a command.  If the command is still running on the remote machine, the output will be live streamed until
- the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been displayed.
+ the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been displayed.  Both stdout AND stderr are included in the output.
  
  ```
- Usage: trc-client [options] status <command id>
+ Usage: trc-client [options] output <command id>
  Stream the output of a command
 ```
 
@@ -163,7 +164,9 @@ message StatusResponse {
     string cmd = 2;
     repeated string args = 3;
     string state = 4;
-    Error error = 5;
+    string error = 5;
+    int32 exit = 6;
+    Error error = 7;
 }
 
 message StopResponse {
@@ -221,6 +224,14 @@ Authentication and Authorization takes place in three steps:
 
 More details in [Authentication Service](#Authentication Service)
 
+**Design Consideration**. This project requires both Authentication and Authorization.  The authentication is handled by verifying the client/server certs are properly generated and signed.  Authorization is a bit trickier.  The certs can be setup to limit the IP ranges/domains of the connections.  This can limit access to the server, however it doesn't prevent different users from connecting from the same computer.  To solve this problem, there a couple of options:
+
+1. Require each user to use a login/password.  The credentials would then be included in the messages.
+
+2. Require each user to generate a unique cert/key pair and register the cert with the server.  The advatage of this approach is the user's public key is included in the gRPC metadata.  This allows the server to compare the key from the metadata with the key in the list of known certs.  This is the solution I've chosen for this project.
+
+
+
 ## Server Design
 ```
                         +-----------------------------------------------------------------+
@@ -256,21 +267,24 @@ The API receives the incoming request from a client.  It authenticates the reque
 ## Auth Service
 The auth service is responsible for verifying the connected client has permissions to run commands on the server.  On startup, the auth service reads in 
 a list of authorized client certificates.  When a request comes in, the public key is obtained from the request and passed to Auth Service.  If the key
-matches one of the known certificates, a unique user ID is returned.  The ID is then attached to each job as they are started and used to authorize access
+matches one of the known certificates, a unique user ID is returned. The ID is a sequential integer assigned as the certs are read in (ie: cert 1 == id, cert 2 == id2, etc).  Since the certs are only read in once, this will ensure that the user IDs remain consistent as long as the server is running.
+
+The ID is then attached to each job as they are started and used to authorize access
 to a job (ie: if user 1 starts a job, only user 1 should have permission to status or stop the job).
+
 
 
 ## Job Repository
 The job repository preserves the state of each job.  For this implementation it is not backed by a database, but the schema is:
 
 ```
-     command_id        |     user_id        |    state     |   command     |    args       |    output_file
-   --------------------+--------------------+--------------+---------------+---------------+-------------------------
-   UUID of the command | ID of user who     | state of the | command which | list of args  | file with command output
-   which was run.      | started command.   | command.     | was run.      | to the command|
+     command_id        |     user_id        |    state     |   command     |    args       |    output_file.  | exit        | error
+   --------------------+--------------------+--------------+---------------+---------------+------------------+-------------+------
+   UUID of the command | ID of user who     | state of the | command which | list of args  | file with command| command exit| error starting
+   which was run.      | started command.   | command.     | was run.      | to the command| output.          | status code | command
 ```
 
-The job repository provides CRUD access to the data (technially CRU operations, as delete is not a requirement of this project).
+The job repository provides CRUD access to the data (technically CRU operations, as delete is not a requirement of this project).
 
 
 ## Job Service
@@ -278,6 +292,17 @@ The job service is responsible for managing jobs.  The job service provides the 
 As each job is started, it sets up the cgroup by creating the directory and setting up the appropriate files.  It then manages the lifecycle of the job,
 both notifying the job if the client stops the job and receiving notification as jobs complete.  As the job changes state, the job service updates the job
 repository.
+
+The lifecycle of a job:
+1. The cgroup mounts, directories and files are setup
+2. The command is executed using `exec.cmd` Go library.  The process is started in a goroutine then blocks waiting for `Cmd.Wait()` to return. When the command is started, the pid is added to `cgroup.procs` file and the `Cmd` object is saved in the JobService.
+3. JobService updates that job's state in the repo to `running`
+4. If the process is stopped prematurely via a call to `Stop()`: the JobService calls the job's `Cmd.Process.Kill()` method.
+5. On process completion, the job's state is updated in the repo
+6. The setup done for cgroups is cleaned up.
+
+In either case, the 
+
 
 As jobs complete, they are removed from the job service, with the results stored in the job repository.
 
@@ -312,9 +337,9 @@ By implementing the streaming using files, the file offsets are managed by the O
 All jobs will run in a unique cgroup.  This will be setup by the job service when the job is started.  When the job exists, the job service will clean up 
 up the cgroup directories.
 
-For this project, the cgroup values will be hard coded.  
+For this project, the cgroup values will be hard coded.  In a production version, however, the limits would be configurable.
 
-**Design Consideration** There are two ways to add a process to a cgroup: either by starting the process using the `cexec` command or by placing the running processes' PID in the cgroup.procs file.  Using cexec command has the advatage of starting the process in the cgroup, however the command is not installed on some Linux distros by default.  Adding the pid has the advatange of not adding additional dependencies, but the disadvatage of starting outside of the cgroup constratings, albeit only briefly.  For this project, I opted to put the PID in the cgroup file.
+**Design Consideration** There are two ways to add a process to a cgroup: either by starting the process using the `cexec` command or by placing the running processes' PID in the cgroup.procs file.  Using cexec command has the advantage of starting the process in the cgroup, however the command is not installed on some Linux distros by default.  Adding the pid has the advantage of not adding additional dependencies, but the disadvantage of starting outside of the cgroup constraints, albeit only briefly.  For this project, I opted to put the PID in the cgroup file.
 
 
 ## Workflow
@@ -354,7 +379,7 @@ All of the sub commands follow similar workflows, so as an example, this is the 
 The Job Service is intended by be used as the entry point of a standalone Go libraray. The `jobService` struct provides the functions: `Start()`, `Stop()`, `Status()` and `Output()` to manipulate jobs.  
 
 
-Job Service definitaion
+Job Service definition
 
 
 ```
@@ -392,9 +417,9 @@ type Cgroup
 ```
     func (*Cgroup) Setup(mountPoint string,  subDir string) error
 ```
-This function creates a new mountpoint for the `/sys/fs/cgroup` directory and creates a unique sub directory for the job to run in.  
+This function creates a new mount point for the `/sys/fs/cgroup` directory and creates a unique sub directory for the job to run in.  
 
-The various values for CPU, memory and I/O will be hard coded.  This is done as a siplification for this project.  A production version would be configurable.
+The various values for CPU, memory and I/O will be hard coded.  This is done as a simplification for this project.  A production version would be configurable.
 
 ```
 	func (*Cgroup) Start(pid int) error
