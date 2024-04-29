@@ -298,18 +298,14 @@ The lifecycle of a job:
 As each job is executed, the output is written to a file.  For the purposes of this project, STDOUT and STDERR are both written to the same file and are interleaved.  A more robust system would separate the outputs and allow callers to specify which should be returned.
 
 # <a name="_dp6btk223uz"></a>Jobs Repository
-The job repository preserves the state of each job. For this implementation it is not backed by a database, but the schema is:
+The job repository preserves the state of each job. For this project, the , but the schema is:
 
-`     `command\_id        |     user\_id        |    state     |   command     |    args       |    output\_file.  | exit        | error
-
-`   `--------------------+--------------------+--------------+---------------+---------------+------------------+-------------+------
-
-`   `UUID of the command | ID of user who     | state of the | command which | list of args  | file with command| command exit| error starting
-
-`   `which was run.      | started command.   | command.     | was run.      | to the command| output.          | status code | command
-
-
-
+```
+     command_id        |     state     |   command     |    args       |    output_file.  | exit        | error
+   --------------------+--------------+---------------+---------------+------------------+-------------+------
+   UUID of the command | state of the | command which | list of args  | file with command| command exit| error starting
+   which was run.      | command.     | was run.      | to the command| output.          | status code | command
+```
 
 
 
