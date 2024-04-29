@@ -20,247 +20,190 @@ trc-client consists of the sub commands start, stop status and output. All the c
 
 The following options are common to all subcommands:
 
-`  `Options:
 
-`  `-help
+```
+  Options:
 
-`    	`print help
+  -help
+    	print help
+  -host string
+    	remote host to connect to (default "127.0.0.1")
+  -ident string
+    	config file with paths to ssl certs and keys (required)
+  -port int
+    	remote port to connect to (default 50051)
 
--host string
+Where -ident is the path to a JSON file with information about SSL certs and keys:
+{
+	"ca-cert": "<path to self-signed CA certificate>",
+	"public-key": "<path to host's public key>",
+	"host-cert": "<path to host cert signed by 'ca-cert'">
+}
 
-`    	`remote host to connect to (default "127.0.0.1")
-
-`  `-ident string
-
-`    	`config file with paths to ssl certs and keys (required)
-
-`  `-port int
-
-`    	`remote port to connect to (default 50051)
-
-`  `-ident string
-
-`    	`config file with paths to ssl certs and keys (required)
-
+```
 
 
 Where -ident is the path to a JSON file with information about SSL certs and keys:
 
+```json
 {
 
-`	`"ca-cert": "<path to self-signed CA certificate>",
-
-`	`"key": "<path to host's key>",
-
-`	`"host-cert": "<path to host cert signed by 'ca-cert'">
+     "ca-cert": "<path to self-signed CA certificate>",
+     "key": "<path to host's key>",
+     "host-cert": "<path to host cert signed by 'ca-cert'">
 
 }
-
+```
 
 ### <a name="_6ybw908vo9un"></a>Subcommand error output
 On error, all subcommands output the following error format:
 
+```json
 {
-
-`  `"error": "error message",
-
-`  `"code": "numerical error code"
-
+     "error": "error message",
+     "code": "numerical error code"
 }
-
+```
 
 ### <a name="_ibnjqdwwhvf0"></a>start subcommand
 start starts a new shell command on the remote server.
 
-Usage: trc-client start [-host|-port|-ident] <command> [command arguments].
+`Usage: trc-client start [-host|-port|-ident] <command> [command arguments].`
 
 Output:
-
+```json
 {
 
-`  `"id": "<unique UUID>"
+  "id": "<unique UUID>"
 
 }
-
+```
 id: a unique identifier that can be used to stop or status commands
 
 ### <a name="_an8sl31hy99k"></a>status subcommand
 The status command retrieves information about a previously started command:
 
-Usage: trc-client [options] status <command id>
+`Usage: trc-client [options] status <command id>`
 
 Get status of a previously started command.
 
 Output:
-
+```json
 {
-
-`  `"id": "<command UUID>",
-
-`  `"command": "<command run>",
-
-`  `"args": [ 
-
-`            `"command arg1",
-
-`            `"command arg2"
-
-`  `],
-
-`  `"state": "[running,completed,canceled,error]",
-
-`  `"error": "null|error message",
-
-`  `"exit\_status: "command exit status"
-
+     "id": "<command UUID>",
+     "command": "<command run>",
+     "args": [ 
+            "command arg1",
+            "command arg2"
+     ],
+     "state": "[running,completed,canceled,error]",
+     "error": "null|error message",
+     "exit_status: "command exit status"
 }
-
+```
 
 ### <a name="_vmj8dmfecyrn"></a>output subcommand
 The output subcommand returns output of a command. If the command is still running on the remote machine, the output will be live streamed until the command finishes or is stopped by another trc command. If the command is not running, it will exit after all lines have been displayed. Both stdout AND stderr are included in the output.
 
-Usage: trc-client [options] output <command id>
+`Usage: trc-client [options] output <command id>`
 
 Stream the output of a command
 
 
 Output:
-
+```
 command output line1
-
 command output line2
-
 command output line3
-
+```
 ### <a name="_xwvk9ga52s"></a>stop subcommand
 The stop command stops a running command. If the command is not running, or stopping the command fails, an error is returned.
-
+`Usage: trc-client [options] stop <command id>`
 Output:
-
+```json
 {
-
-`  `"success": "true"
-
+     "success": "true"
 }
+```
 
 # <a name="_lzxdkro76353"></a>trc-agent usage
 
 The agent only takes a single option:
+`Usage: trc-agent -ident <path-to-identity-file>`
 
 Options:
 
-`    `- ident string
-
-`        `config file with paths to ssl certs and keys (required)
+   - ident string
+        config file with paths to ssl certs and keys (required)
 
 File format:
-
+```json
 {
-
-`     `"ca-cert": "<path to CA cert>",
-
-`     `"agent-key": "<path to host’s key>",
-
-`     `"agent-cert": "<path to host's cert signed by CA cert>",
-
+     "ca-cert": "<path to CA cert>",
+     "agent-key": "<path to host’s key>",
+     "agent-cert": "<path to host's cert signed by CA cert>",
 }
-
+```
 
 # <a name="_l5xtktkosihk"></a>gRPC Protocol
 The protobuf message definitions for sending and receiving commands between the client and agent:
-
+```
 service TrcAgent{
-
-`    `rpc Start(StartRequest) returns (StartResponse);
-
-`    `rpc Output(IdRequest) returns (stream OutputResponse);
-
-`    `rpc Status(IdRequest) returns (StatusResponse);
-
-`    `rpc Stop(IdRequest) returns (StopResponse);
-
+     rpc Start(StartRequest) returns (StartResponse);
+     rpc Output(IdRequest) returns (stream OutputResponse);
+     rpc Status(IdRequest) returns (StatusResponse);
+     rpc Stop(IdRequest) returns (StopResponse);
 }
 
 message StartRequest {
-
-`    `string command = 1;
-
+     string command = 1;
 }
 
 message StartResponse {
-
-`    `UUID id = 1;
-
-`    `Error error = 2;
-
+     UUID id = 1;
+     Error error = 2;
 }
 
 message IdRequest {
-
-`    `UUID id = 1;
-
+     UUID id = 1;
 }
 
 message OutputResponse {
-
-`    `string output = 1;
-
-`    `Error error = 2;
-
+     string output = 1;
+     Error error = 2;
 }
 
-
 message StatusResponse {
-
-`    `UUID id = 1;
-
-`    `string cmd = 2;
-
-`    `repeated string args = 3;
-
-`    `string state = 4;
-
-`    `string error = 5;
-
-`    `int32 exit = 6;
-
-`    `Error error = 7;
-
+     UUID id = 1;
+     string cmd = 2;
+     repeated string args = 3;
+     string state = 4;
+     string error = 5;
+     int32 exit = 6;
+     Error error = 7;
 }
 
 message StopResponse {
-
-`    `UUID id = 1;
-
-`    `Error error = 2;
-
+     UUID id = 1;
+     Error error = 2;
 }
 
 enum State {
-
-`    `RUNNING = 0;
-
-`    `COMPLETE = 1;
-
-`    `STOPPED = 2;
-
-`    `ERROR = 3;
-
+     RUNNING = 0;
+     COMPLETE = 1;
+     STOPPED = 2;
+     ERROR = 3;
 }
 
 message UUID {
-
-`    `string value = 1;
-
+     string value = 1;
 }
 
 message Error {
-
-`    `int32 code = 1;
-
-`    `string message = 2;
-
+     int32 code = 1;
+     string message = 2;
 }
+```
 
 # <a name="_lmohbtf2asqg"></a>Authentication and Authorization
 Authentication will be handled using mutual TLS (mTLS).  Both the agent and the client will generate self signed certs using a common CA. When the connection is established, the client and agent will each verify the other’s authenticity.   Each client user will generate their own cert.  In this way, the agent can distinguish which user executes which commands.  
@@ -298,7 +241,9 @@ The lifecycle of a job:
 As each job is executed, the output is written to a file.  For the purposes of this project, STDOUT and STDERR are both written to the same file and are interleaved.  A more robust system would separate the outputs and allow callers to specify which should be returned.
 
 # <a name="_dp6btk223uz"></a>Jobs Repository
-The job repository preserves the state of each job. For this project, the , but the schema is:
+The job repository preserves the state of each job. For this project, the jobs repository will be stored in memory.
+
+The schema is:
 
 ```
      command_id        |     state     |   command     |    args       |    output_file.  | exit        | error
