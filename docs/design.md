@@ -242,7 +242,7 @@ As each job is executed, the output is written to a file.  For the purposes of t
 func (j *JobService) Start(ctx context.Context, cert *x509.Certificate, command string, args []string) (string, error)
 
 // Stop a running job.  Returns nil error on success or error 
-func (j *JobService) Stop(ctx context.Context, comamndId string) error
+func (j *JobService) Stop(ctx context.Context, commandID string) error
 
 // Query a command.  On success a QueryResponse struct is returned
 func (j *JobService) Query(ctx context.Context, commandId string) (*QueryResponse, error)
