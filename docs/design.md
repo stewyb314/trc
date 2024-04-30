@@ -1,4 +1,4 @@
-﻿<a name="_9h4p1coakp1j"></a>TRC Design
+# ﻿<a name="_9h4p1coakp1j"></a>TRC Design
 
 Teleport Remote Command
 
@@ -234,24 +234,104 @@ The lifecycle of a job:
 1. The cgroup mounts, directories and files are setup
 1. The command is executed using exec.cmd Go library. The process is started in a goroutine then blocks waiting for Cmd.Wait() to return. When the command is started, the pid is added to cgroup.procs file and the Cmd object is saved in the JobService. The command is called through a wrapper script which ensures that the PID of the process is added to the procs file before execution begins (see cgroups section below for details)
 1. JobService updates that job's state in the repo to running
-1. If the process is stopped prematurely via a call to Stop(): the JobService calls the job's Cmd.Process.Kill() method.
+1. If the process is stopped prematurely via a call to Stop() the JobService kills the command.
 1. On process completion, the job's state is updated in the repo
 1. The setup done for cgroups is cleaned up.
 
 As each job is executed, the output is written to a file.  For the purposes of this project, STDOUT and STDERR are both written to the same file and are interleaved.  A more robust system would separate the outputs and allow callers to specify which should be returned.
 
+## <a name="job_service_interface">Job Service Interface
+```go
+// Start a new command.  Once started, the JobService will run the command concerntly, writing the output to a file
+// returns the command ID on success
+func (j *JobService) Start(ctx context.Context, cert *x509.Certificate, command string, args []string) (string, error)
+
+// Stop a running job.  Returns nil error on success or error 
+func (j *JobService) Stop(ctx context.Context, comamndId string) error
+
+// Query a command.  On success a QueryResponse struct is returned
+func (j *JobService) Query(ctx context.Context, commandId string) (*QueryResponse, error)
+
+type QueryResponse struct {
+	Id string        //command ID
+	State string     // state of the command: running, canceled, error or completed
+	Command string   // the command which was run
+	Args []string    // arguments to the command
+}
+
+// Returns a struct to read command output from the output file (See <a name="#command_output">Command Output</a> for more details
+func (j *JobService) GetOutput(ctx context.Context, string commandId) (*CommandOutput, error)
+
+
+```
+
+
+## <a name="command_output"></a>Command Output
+The commandOutput struct is responsible for streaming the contents of the command files, which contain the output of commands run by the job service. The commandOutput is returned by the `GetOutput` method in the JobService and consists of:
+```go
+type commandOutput struct {
+	Id string           //command ID
+	File string         // path to the command output file
+        Out chan string     // channel the file's content is written to
+	Repo JobRepo        // Job Repository object
+}
+
+// ReadData does the following:
+// 1) open the command file
+// 2) read the contents from the file and write it to the Out channel
+// 3) when the end of the file is reached, check status of the job in the JobRepo.
+//     a) if the job is not running, exit
+//     b) if the job is still running:
+//          i) sleep for a short period of time
+//          ii) check if there is more data to read.
+//        This loop will continue until the job stops and the JobService updates the JobRepo status to anything other than running
+//
+// The idea is that the caller can start ReadData as a go function, read the results in the Out chan and stream the results back to the gRPC layer.
+func (c *commandOutput) ReadData(ctx context.Context) error
+
+```
 # <a name="_dp6btk223uz"></a>Jobs Repository
 The job repository preserves the state of each job. For this project, the jobs repository will be stored in memory.
 
 The schema is:
 
 ```
-     command_id        |     state     |   command     |    args       |    output_file.  | exit        | error
-   --------------------+--------------+---------------+---------------+------------------+-------------+------
-   UUID of the command | state of the | command which | list of args  | file with command| command exit| error starting
-   which was run.      | command.     | was run.      | to the command| output.          | status code | command
+     command_id        | user cert    |     state    |   command     |    args       |    output_file.  | exit        | error
+   --------------------+--------------+--------------+---------------+---------------+------------------+-------------+------
+   UUID of the command | cert of user | command which | list of args  | file with command| command exit| error starting
+   which was run.      | who started  | was run.      | to the command| output.          | status code | command
+                         commnd
+```
+# <a name="cgroups"></a>Cgroups
+Cgroups provide a mechanism for limiting a process' resources.  For this project, only memory, CPU and disk IO will be considered.
+For simplicity the limits will be hardcoded into this project, but will be applied to each command individually.  Cgroups require the PID of the command be added to a file before the resource restrictions can be applied.  This creates a race condition between the time the command started (which generates the PID) and the PID is added to the file.  For this time, the command runs unrestricted.
+
+Fortunetly all child PIDs of process are subject to the same resource restrictions as the parent PID.  This project takes advantage of this by using a smaller wrapper script to ensure the command is properly placed in the cgroup prior to execution:
+
+`wrapper.sh <pid_file> <command> <args>`
+
+Where:
+
+	`pid_file`:     path to the cgroup pid file
+ 
+	`command`:      The command to execute
+ 
+	`args`:         the arguments to the command
+
+The contents of wrapper.sh:
+
+```bash
+	path=$1
+	shift
+	echo $$ > ${path}
+	$* >2&1
 ```
 
+For example if the command to be executed was: `ls -a /foo` the JobService would run the command:
+
+`wrapper.sh "/fs/cgroups/123/pid" "ls" "-a" "/foo"` 
+
+The wrapper script also redirects STDERR to STDOUT.  Since this project does not differentiate between stdout and stderr, doing this makes it easier for the JobService to save the command output to a file
 
 
 
