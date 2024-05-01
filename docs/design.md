@@ -342,8 +342,8 @@ The schema is:
 ```
      command_id        | user cert    |     state    |   command     |    args       |    output_file.  | exit        | error
    --------------------+--------------+--------------+---------------+---------------+------------------+-------------+------
-   UUID of the command | cert of user | command which | list of args  | file with command| command exit| error starting
-   which was run.      | who started  | was run.      | to the command| output.          | status code | command
+   UUID of the command | cert of user | state of the |command which | list of args  | file with command| command exit| error starting
+   which was run.      | who started  |  command     |was run.      | to the command| output.          | status code | command
                          commnd
 ```
 # <a name="cgroups"></a>Cgroups
