@@ -268,7 +268,8 @@ This  requires three files on each the agent and the client:
 1) The host’s self signed certificate file, which is unique to the agent and each client user 
 1) The host’s private key, which is also unique to the agent and each client user
 
-gRPC uses the CA certificate file to generate a certificate pool.  The self signed certificate and the private key are used to generate the certificate which will be presented in the authentication.
+gRPC uses the CA certificate file to generate a certificate pool. The self signed certificate and the private key are used to generate the certificate which will be presented in the authentication.
+
 
 TLS version 1.3 will be required for this project.  This version of the [ TLS package](https://go.dev/src/crypto/tls/cipher_suites.go) only allows cipher suites with no known vulnerabilities. These are the encryption algorithms that this project will use.
 
