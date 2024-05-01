@@ -148,54 +148,78 @@ Options:
 
 # <a name="_l5xtktkosihk"></a>gRPC Protocol
 The protobuf message definitions for sending and receiving commands between the client and agent:
-```
+```proto
 service TrcAgent{
-     rpc Start(StartRequest) returns (StartResponse);
-     rpc Output(IdRequest) returns (stream OutputResponse);
-     rpc Status(IdRequest) returns (StatusResponse);
-     rpc Stop(IdRequest) returns (StopResponse);
+    // Start a new command
+    rpc Start(StartRequest) returns (StartResponse);
+    // Stream the output of a command
+    rpc Output(OutputRequest) returns (stream OutputResponse);
+    // Get the status of a command
+    rpc Status(StatusRequest) returns (StatusResponse);
+    // Stop a running command
+    rpc Stop(StopRequest) returns (StopResponse);
 }
 
 message StartRequest {
-     string command = 1;
-     repeated string args = 2;
+    // command to execute
+    required string command = 1;
+    // arguments to the command
+    repeated string args = 2; //
 }
 
 message StartResponse {
-     UUID id = 1;
+    // return the command ID of started command
+    required string id = 1;
 }
 
-message IdRequest {
-     UUID id = 1;
+message OutputRequest {
+    // ID of the command to retrieve the output of
+    required string id = 1;
 }
 
 message OutputResponse {
-     bytes output = 1;
+    // output of the command
+    required bytes output = 1;
+}
+
+message StatusRequest {
+    // id of the command to status
+    required string id = 1;
 }
 
 message StatusResponse {
-     UUID id = 1;
-     string cmd = 2;
-     repeated string args = 3;
-     string state = 4;
-     string error = 5;
-     int32 exit = 6;
-     Error error = 7;
+    // command ID
+    required string id = 1;
+    // command which was executed
+    required string cmd = 2;
+    // args to the command
+    repeated string args = 3;
+    // current state of the command
+    required State state = 4;
+    // exit status of the command
+    required int32 exit = 6;
+}
+message StopRequest {
+    // ID of the command to stop
+    required string id = 1;
 }
 
 message StopResponse {
-     UUID id = 1;
+    // ID of the command stopped
+    required string id = 1;
 }
 
 enum State {
-     RUNNING = 0;
-     COMPLETE = 1;
-     STOPPED = 2;
-     ERROR = 3;
-}
-
-message UUID {
-     string value = 1;
+    // Default the state is unknown
+    UNKNOWN = 0;
+    // The command ran to completion
+    COMPLETE = 1;
+    // The command was stopped prematurely by Stop()
+    STOPPED = 2;
+    // There was an error starting the command
+    ERROR = 3;
+    // The command is running
+    RUNNING = 4;
 }
 
 
@@ -308,9 +332,14 @@ The schema is:
                          commnd
 ```
 # <a name="cgroups"></a>Cgroups
-Cgroups provide a mechanism for limiting a process' resources.  For this project, only memory, CPU and disk IO will be considered.
-For simplicity the limits will be hardcoded into this project, but will be applied to each command individually.  Cgroups require the PID of the command be added to a file before the resource restrictions can be applied.  This creates a race condition between the time the command started (which generates the PID) and the PID is added to the file.  For this time, the command runs unrestricted.
+Cgroups provide a mechanism for limiting a process' resources.  For this project, only memory, CPU and disk IO will be considered and will use cgroups V2.
 
+The hardcoded limits per command for the project will be: max memory 1GB, max CPU 10% and max block IO 1 MB/s.
+
+Since all of the processes will use the same limits, the mounts in `/cgroups` will be setup when the agent starts and removed on exit.
+
+For simplicity the limits will be hardcoded into this project, but will be applied to each command individually.  Cgroups require the PID of the command be added to a file before the resource restrictions can be applied.  This creates a race condition between the time the command started (which generates the PID) and the PID is added to the file.  For this time, the command runs unrestricted.
+ 
 Fortunetly all child PIDs of process are subject to the same resource restrictions as the parent PID.  This project takes advantage of this by using a smaller wrapper script to ensure the command is properly placed in the cgroup prior to execution:
 
 `wrapper.sh <pid_file> <command> <args>`
