@@ -54,6 +54,21 @@ On error, all subcommands output the following error format:
      "code": "numerical error code"
 }
 ```
+Sample error messages:
+
+Unable to connect to agent:
+```json
+     "error": "Connection Refused",
+     "code": 1
+```
+
+User doesn't have permission to access the requested command:
+```json
+     "error": "Permission Denied",
+     "code": 403
+```
+
+
 
 ### <a name="_ibnjqdwwhvf0"></a>start subcommand
 start starts a new shell command on the remote server.
