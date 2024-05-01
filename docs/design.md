@@ -1,4 +1,4 @@
-# ﻿<a name="_9h4p1coakp1j"></a>TRC Design
+﻿# ﻿<a name="_9h4p1coakp1j"></a>TRC Design
 
 Teleport Remote Command
 
@@ -201,10 +201,14 @@ message UUID {
 
 ```
 
+
 # <a name="_lmohbtf2asqg"></a>Authentication and Authorization
 Authentication will be handled using mutual TLS (mTLS).  Both the agent and the client will generate self signed certs using a common CA. When the connection is established, the client and agent will each verify the other’s authenticity.   Each client user will generate their own cert. The agent can retrieve the cert from gRPC connection and, since each cert is unique to a single user, the agent can distinguish which user executes which commands.  
 
 Authorization will ensure that a client user (as determined by the cert attached to the request) can only get the stop, get the status and stream the output of commands started by that user.  In other words, if user 1 starts a command, user 2 can’t stop, status or get the output of that command. Internally this will be accomplished by pairing the command execution with the public certificate attached to the request.
+# <a neame="_auth_service"></a>Auth Service
+
+The auth service provides the authorization outlined above.  When a Start() request is made, the auth service stores the certificate presented in the request and the command ID of the command to be executed.  On subsequent Status(), Output() or Stop() requests, the auth service will look up the command ID from the request and compare the stored certificate with the certificate from the request.
 
 # <a name="_tr2es7dqywgj"></a>mTLS
 Mutual TLS uses a dual exchange of certificates to verify the authenticity of both the host making the gRPC call and the host receiving the request.
@@ -217,7 +221,7 @@ This  requires three files on each the agent and the client:
 
 gRPC uses the CA certificate file to generate a certificate pool.  The self signed certificate and the private key are used to generate the certificate which will be presented in the authentication.
 
-By default, the[ TLS package](https://go.dev/src/crypto/tls/cipher_suites.go) only allows cipher suites with no known vulnerabilities. These are the encryption algorithms that this project will use.
+TLS version 1.3 will be required for this project.  This version of the [ TLS package](https://go.dev/src/crypto/tls/cipher_suites.go) only allows cipher suites with no known vulnerabilities. These are the encryption algorithms that this project will use.
 
 
 # <a name="_1y2ukim9xwfx"></a>Job Service
@@ -234,19 +238,20 @@ The lifecycle of a job:
 1. On process completion, the job's state is updated in the repo
 1. The setup done for cgroups is cleaned up.
 
-As each job is executed, the output is written to a file.  For the purposes of this project, STDOUT and STDERR are both written to the same file and are interleaved.  A more robust system would separate the outputs and allow callers to specify which should be returned.
+As each job is executed, the output is written to a cfile.  For the purposes of this project, STDOUT and STDERR are both written to the same file and are interleaved.  A more robust system would separate the outputs and allow callers to specify which should be returned.
 
 ## <a name="job_service_interface">Job Service Interface
 ```go
 // Start a new command.  Once started, the JobService will run the command concerntly, writing the output to a file
 // returns the command ID on success
-func (j *JobService) Start(ctx context.Context, cert *x509.Certificate, command string, args []string) (string, error)
+func (j *JobService) Start(ctx context.Context, commandID string, command string, args []string) (string, error)
 
-// Stop a running job.  Returns nil error on success or error 
+// Stop a running job.  This function will call the Cmd.Stop() function on corresponding command.
+//Returns nil error on success or error 
 func (j *JobService) Stop(ctx context.Context, commandID string) error
 
 // Query a command.  On success a QueryResponse struct is returned
-func (j *JobService) Query(ctx context.Context, commandId string) (*QueryResponse, error)
+func (j *JobService) Query(ctx context.Context, commandID string) (*QueryResponse, error)
 
 type QueryResponse struct {
 	Id string        //command ID
@@ -268,24 +273,28 @@ The commandOutput struct is responsible for streaming the contents of the comman
 type commandOutput struct {
 	Id string           //command ID
 	File string         // path to the command output file
-        Out chan string     // channel the file's content is written to
-	Repo JobRepo        // Job Repository object
+     Out chan byte       // channel the file's content is written to
+	Ctx context.Context // Cancel context
 }
 
-// ReadData does the following:
-// 1) open the command file
-// 2) read the contents from the file and write it to the Out channel
-// 3) when the end of the file is reached, check status of the job in the JobRepo.
-//     a) if the job is not running, exit
-//     b) if the job is still running:
-//          i) sleep for a short period of time
-//          ii) check if there is more data to read.
-//        This loop will continue until the job stops and the JobService updates the JobRepo status to anything other than running
-//
-// The idea is that the caller can start ReadData as a go function, read the results in the Out chan and stream the results back to the gRPC layer.
-func (c *commandOutput) ReadData(ctx context.Context) error
+func (c *commandOutput) ReadData() error
 
 ```
+
+When the JobServie returns the commandOutput, it adds the cancel function associated with commandOutput.Ctx.  
+Once the command finishes executing, the JobSerivce calls the cancel function.  
+
+The ReadData() function then:
+1. Reads data from the output file writing the contents to the Out channel until EOF is reached
+1. Sets a ticker for a short period of time
+1. Do a select on the ticker channel and the ctx.Done channel
+1. If the Done channel fires first, read any other data that may have come into the output file and exit
+1. If the ticker fires first, check the output file for more data to be read
+1. select on the ticker and ctx.Done channels 
+1. repeat until the Done channel fires
+
+
+
 # <a name="_dp6btk223uz"></a>Jobs Repository
 The job repository preserves the state of each job. For this project, the jobs repository will be stored in memory.
 
