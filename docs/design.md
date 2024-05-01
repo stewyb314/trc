@@ -105,7 +105,7 @@ Output:
      ],
      "status": "[running,completed,stopped,error]",
      "error": "null|error message",
-     "exit_status: "command exit status"
+     "exit_status": "command exit status"
 }
 ```
 ```
@@ -292,15 +292,20 @@ As each job is executed, the output is written to a cfile.  For the purposes of 
 ## <a name="job_service_interface">Job Service Interface
 ```go
 // Start a new command.  Once started, the JobService will run the command concurrently, writing the output to a file
+type JobService interface {
 // returns the command ID on success
-func (j *JobService) Start(ctx context.Context, commandID string, command string, args []string) (string, error)
+      Start(ctx context.Context, commandID string, command string, args []string) (string, error)
 
-// Stop a running job.  This function will call the Cmd.Stop() function on corresponding command.
-//Returns nil error on success or error 
-func (j *JobService) Stop(ctx context.Context, commandID string) error
+     // Stop a running job.  This function will call the Cmd.Stop() function on corresponding command.
+     //Returns nil error on success or error 
+     Stop(ctx context.Context, commandID string) error
 
-// Query a command.  On success a QueryResponse struct is returned
-func (j *JobService) Query(ctx context.Context, commandID string) (*QueryResponse, error)
+     // Query a command.  On success a QueryResponse struct is returned
+     Query(ctx context.Context, commandID string) (*QueryResponse, error)
+
+     // Returns a struct to read command output from the output file (See <a name="#command_output">Command Output</a> for more details
+     GetOutput(ctx context.Context, string commandId) (*CommandOutput, error)
+}
 
 type QueryResponse struct {
 	Id string        //command ID
@@ -308,11 +313,6 @@ type QueryResponse struct {
 	Command string   // the command which was run
 	Args []string    // arguments to the command
 }
-
-// Returns a struct to read command output from the output file (See <a name="#command_output">Command Output</a> for more details
-func (j *JobService) GetOutput(ctx context.Context, string commandId) (*CommandOutput, error)
-
-
 ```
 
 
