@@ -13,7 +13,8 @@ trc is split into two executables: trc-agent and trc-client. trc-client runs in 
 
 Resources used by commands run by the agent are restricted using Linux Control Groups v2 (cgroups). However, the commands are run as root with no whitelisting of allowable commands. 
 
-NOTE: A production version of this tool would typically include allow/deny lists or commands run in a chroot environment  to prevent potentially harmful commands from being run. 
+NOTE: A production version of this tool would typically include allow/deny lists or commands run in a chroot environment to prevent potentially harmful commands from being run. 
+
 
 # <a name="_isobl31grue1"></a>trc-client usage
 trc-client consists of the sub commands start, stop status and output. All the commands except output return JSON. output streams the output of a command
