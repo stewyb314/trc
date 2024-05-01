@@ -17,7 +17,9 @@ NOTE: A production version of this tool would typically include allow/deny lists
 
 
 # <a name="_isobl31grue1"></a>trc-client usage
-trc-client consists of the sub commands start, stop status and output. All the commands except output return JSON. output streams the output of a command
+trc-client consists of the sub commands start, stop status and output. All the commands except output return JSON. output streams the output of a command.
+
+If the comand sent to the agent fails for some reason, the `trc-client` will exit with the same error code as was returned from the agent.
 
 The following options are common to all subcommands:
 
@@ -149,11 +151,17 @@ The agent requires the following options:
 
 Options:
 
+  -help
+     print help and exit 
+
   -ca-cert string
 	path to the host's self signed CA certificate
 
   -key string
 	path to the hosts key file
+
+  -port
+      port the agent should listen on
 
   -host-cert
 	path to the host cert signed by the ca-cert
@@ -235,6 +243,8 @@ enum State {
     ERROR = 3;
     // The command is running
     RUNNING = 4;
+    // The command has not started yet
+    PENDING = 5;
 }
 
 
@@ -281,7 +291,7 @@ As each job is executed, the output is written to a cfile.  For the purposes of 
 
 ## <a name="job_service_interface">Job Service Interface
 ```go
-// Start a new command.  Once started, the JobService will run the command concerntly, writing the output to a file
+// Start a new command.  Once started, the JobService will run the command concurrently, writing the output to a file
 // returns the command ID on success
 func (j *JobService) Start(ctx context.Context, commandID string, command string, args []string) (string, error)
 
